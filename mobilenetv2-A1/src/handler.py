@@ -7,6 +7,7 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 from PIL import Image
+import json
 
 import boto3
 import os
@@ -49,6 +50,12 @@ def transform_image(image_bytes):
         print( repr(e))
         raise(e)
 
+json_file_path = r'imagenet-simple-labels.json'
+imagenet_labels = []
+
+with open(json_file_path, "r") as read_file:
+    imagenet_labels = json.load(read_file)
+
 def get_prediction(image_bytes):
     tensor = transform_image(image_bytes=image_bytes)
     return model(tensor).argmax().item()
@@ -62,8 +69,11 @@ def classify_image(event,context):
 
         picture = decoder.MultipartDecoder(body,content_type_header).parts[0]
         prediction = get_prediction(image_bytes=picture.content)
-        print(prediction)
+        print("Predicted class id: {0}".format(prediction))
 
+        if len(imagenet_labels) > 0:
+            print("Predicted class name: {0}".format(imagenet_labels[prediction]))      
+ 
         filename = picture.headers[b'Content-Disposition'].decode().split(';')[1].split('=')[1]
         if len(filename) < 4:
             filename = picture.headers[b'Content-Disposition'].decode().split(';')[2].split('=')[1]
@@ -75,7 +85,7 @@ def classify_image(event,context):
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Credentials': True
             },
-            "body": json.dumps({'file': filename.replace('"', ''), 'prediceted':prediction})
+            "body": json.dumps({'file': filename.replace('"', ''), 'predicted class id':prediction, 'predicted class name':imagenet_labels[prediction]})
         }
     except Exception as e:
         print(repr(e))
